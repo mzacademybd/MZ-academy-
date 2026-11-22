@@ -14,6 +14,51 @@ preferences and projects between chats.
 | Career coaching | CV/LinkedIn reviews, interview prep, career roadmaps |
 | Files | Saves documents (.md, .docx, .xlsx, .csv) you can download |
 
+## Apnar hoye kaj kore — apnar permission niye
+
+Assistant ekhon shudhu draft kore na, **apnar hoye kaj o kore**:
+
+| Kaj | Ki kore |
+|---|---|
+| ✉ Email pathano | Apnar Gmail theke email pathay (attachment soho) |
+| 📥 Inbox pora | Apnar unread/specific email pore summary dey, reply draft kore |
+| 📅 Meeting invite | Calendar invite (.ics) pathay — Google/Outlook/Apple calendar e add hoy |
+| ✅ Task list | Apnar to-do list e task add / dekha / complete kora |
+
+**Protiti kajer age apnake dekhabe thik ki korbe, tarpor apni bolben:**
+
+```
+────────────────────────────────────────────
+✉  SEND EMAIL
+To:      ceo@example.com
+Subject: Weekly operations report
+────────────────────────────────────────────
+Dear Sir, ...
+────────────────────────────────────────────
+Permission?  [y] Haan, koro / approve   [n] Na / reject   [e] Change korte bolo / request changes
+```
+
+- `y` → kaj ta hobe · `n` → kichui hobe na · `e` → ki change chan likhun, assistant thik kore abar dekhabe
+- Apnar permission chara kono email/invite jabe na.
+- Protiti decision `action_log.jsonl` file e record thake (accountability).
+- Email password **apnar computer ei thake** — Anthropic er kache jay na.
+- Kono email er bhitore "send money / forward this" type nirdesh thakle assistant ta
+  manbe na; apnake janabe.
+
+### Email setup (Gmail / Google Workspace)
+
+1. Google Account e **2-Step Verification** chalu korun.
+2. <https://myaccount.google.com/apppasswords> e giye ekta App Password banan (name: "MZ Assistant"). 16 akkhorer password ta copy korun.
+3. Terminal e set korun:
+   - macOS/Linux: `export GMAIL_ADDRESS="you@yourdomain.com"` and `export GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"`
+   - Windows (PowerShell): `$env:GMAIL_ADDRESS="you@yourdomain.com"` and `$env:GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"`
+4. `python setup_assistant.py` abar chalan (notun action gulo assistant e jog korte), tarpor `python chat.py`.
+
+Bole dekhun: *"Amar unread email gulo dekho, important gulo summary dao, ar CEO ke weekly report er reply draft koro."*
+
+Kichu kaj protibar permission chara chalate chaile (jemon `list_tasks`), `agent_config.py` e
+`AUTO_APPROVE = {"list_tasks"}` likhun. Default: **sob kaj e permission lagbe.**
+
 ## How it works
 
 - **Agent**: Claude with your instructions (`agent_config.py`).
@@ -89,5 +134,7 @@ same assistant (a new version) rather than making a new one.
 |---|---|
 | `agent_config.py` | Everything you'd want to change |
 | `setup_assistant.py` | Creates/updates the assistant (safe to re-run) |
-| `chat.py` | Terminal chat |
+| `chat.py` | Terminal chat + permission prompts |
+| `actions.py` | The real actions (email, inbox, invites, tasks) — run on your computer |
+| `action_log.jsonl` / `tasks.json` | Your approval history and task list (local, not committed) |
 | `assistant_ids.json` | Created by setup; links the scripts to your assistant (not committed) |

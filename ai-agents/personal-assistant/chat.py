@@ -3,6 +3,10 @@
     python chat.py              start a new conversation
     python chat.py --continue   pick up your last conversation
 
+Whenever the assistant wants to act for you (send an email, a meeting invite,
+read your inbox, change your tasks) it shows you exactly what it will do and
+waits for your  y / n / e  answer. Every decision is logged to action_log.jsonl.
+
 Commands while chatting:
     /files   download files the assistant created (saved to ./outputs/)
     /quit    end the chat
@@ -16,11 +20,13 @@ from pathlib import Path
 
 import anthropic
 
+import actions
 import agent_config as cfg
 
 HERE = Path(__file__).parent
 IDS_FILE = HERE / "assistant_ids.json"
 OUTPUT_DIR = HERE / "outputs"
+ACTION_LOG = HERE / "action_log.jsonl"
 
 
 def load_ids() -> dict:
@@ -60,6 +66,88 @@ def ask_permission(event) -> bool:
         return False
 
 
+def describe_action(name: str, inp: dict) -> str:
+    """Plain-language preview of what the assistant wants to do."""
+    line = "─" * 60
+    if name == "send_email":
+        parts = [f"✉  SEND EMAIL", f"To:      {', '.join(actions._as_list(inp.get('to')))}"]
+        if inp.get("cc"):
+            parts.append(f"Cc:      {', '.join(actions._as_list(inp.get('cc')))}")
+        parts.append(f"Subject: {inp.get('subject', '')}")
+        if inp.get("attachments"):
+            parts.append(f"Attach:  {', '.join(inp['attachments'])}")
+        parts += [line, inp.get("body", "")]
+    elif name == "send_calendar_invite":
+        parts = ["📅  SEND MEETING INVITE",
+                 f"Title:     {inp.get('title')}",
+                 f"Start:     {inp.get('start')}  ({inp.get('duration_minutes')} min)",
+                 f"Attendees: {', '.join(actions._as_list(inp.get('attendees')))}",
+                 f"Location:  {inp.get('location') or '—'}",
+                 line, inp.get("description", "")]
+    elif name == "read_inbox":
+        parts = [f"📥  READ INBOX   search: {inp.get('search')}   (up to {inp.get('limit') or 10} emails)"]
+    else:
+        parts = [f"⚙  {name.upper()}", json.dumps(inp, indent=2, ensure_ascii=False)]
+    return f"\n{line}\n" + "\n".join(parts) + f"\n{line}"
+
+
+def log_action(name: str, inp: dict, decision: str, result: str) -> None:
+    entry = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "action": name, "input": inp,
+             "decision": decision, "result": result[:500]}
+    with ACTION_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def handle_action(client: anthropic.Anthropic, session_id: str, event) -> None:
+    """The assistant wants to act on your behalf: ask you, then run it (or not)."""
+    name, inp = event.name, dict(event.input or {})
+    is_error = False
+
+    if name in cfg.AUTO_APPROVE:
+        choice = "y"
+    else:
+        print(describe_action(name, inp))
+        print("Permission?  [y] Haan, koro / approve   [n] Na / reject   [e] Change korte bolo / request changes")
+        try:
+            choice = input("> ").strip().lower()[:1]
+        except EOFError:
+            choice = "n"
+
+    if choice == "y":
+        decision = "approved"
+        try:
+            if name == "send_email" and inp.get("attachments"):
+                download_files(client, session_id, quiet=True)
+            result = actions.run(name, inp)
+            print(f"✓ {result.splitlines()[0][:200]}")
+        except actions.ActionError as e:
+            result, is_error = str(e), True
+            print(f"✗ {result}")
+    elif choice == "e":
+        decision = "changes_requested"
+        try:
+            feedback = input("Ki change korte hobe? / What should change? ").strip()
+        except EOFError:
+            feedback = ""
+        result = ("The user did NOT approve this action yet. They asked for these changes: "
+                  f"{feedback or '(no details)'}. Revise and ask again.")
+    else:
+        decision = "rejected"
+        result = "The user REJECTED this action. Do not retry it unchanged; ask what they want instead."
+        print("✗ Rejected — kichu kora hoyni.")
+
+    log_action(name, inp, decision, result)
+    client.beta.sessions.events.send(
+        session_id=session_id,
+        events=[{
+            "type": "user.custom_tool_result",
+            "custom_tool_use_id": event.id,
+            "content": [{"type": "text", "text": result}],
+            "is_error": is_error,
+        }],
+    )
+
+
 def run_turn(client: anthropic.Anthropic, session_id: str, text: str) -> None:
     """Send one message and print the reply as it arrives."""
     with client.beta.sessions.events.stream(session_id=session_id) as stream:
@@ -73,6 +161,8 @@ def run_turn(client: anthropic.Anthropic, session_id: str, text: str) -> None:
                 for block in event.content:
                     if block.type == "text":
                         print(block.text, end="", flush=True)
+            elif event.type == "agent.custom_tool_use":
+                handle_action(client, session_id, event)
             elif event.type == "agent.tool_use":
                 if getattr(event, "evaluated_permission", None) == "ask":
                     allowed = ask_permission(event)
@@ -104,7 +194,7 @@ def run_turn(client: anthropic.Anthropic, session_id: str, text: str) -> None:
                 return
 
 
-def download_files(client: anthropic.Anthropic, session_id: str) -> None:
+def download_files(client: anthropic.Anthropic, session_id: str, quiet: bool = False) -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
     files = []
     for _ in range(3):  # files can take a few seconds to appear
@@ -115,12 +205,14 @@ def download_files(client: anthropic.Anthropic, session_id: str) -> None:
             break
         time.sleep(2)
     if not files:
-        print("No files yet. Ask the assistant to save a document.")
+        if not quiet:
+            print("No files yet. Ask the assistant to save a document.")
         return
     for f in files:
         dest = OUTPUT_DIR / Path(f.filename).name
         client.beta.files.download(f.id).write_to_file(dest)
-        print(f"  saved {dest.relative_to(HERE)}")
+        if not quiet:
+            print(f"  saved {dest.relative_to(HERE)}")
 
 
 def main() -> None:

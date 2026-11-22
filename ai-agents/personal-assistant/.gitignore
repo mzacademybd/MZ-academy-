@@ -4,3 +4,5 @@ assistant_ids.json
 outputs/
 __pycache__/
 .env
+action_log.jsonl
+tasks.json
