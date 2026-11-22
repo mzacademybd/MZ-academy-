@@ -24,6 +24,10 @@ Assistant ekhon shudhu draft kore na, **apnar hoye kaj o kore**:
 | 📥 Inbox pora | Apnar unread/specific email pore summary dey, reply draft kore |
 | 📅 Meeting invite | Calendar invite (.ics) pathay — Google/Outlook/Apple calendar e add hoy |
 | ✅ Task list | Apnar to-do list e task add / dekha / complete kora |
+| 🗓 Google Calendar | Apnar schedule dekha, sorasori event + Google Meet link toiri |
+| ☁ Google Drive | File khuje ber kora, Docs/Sheets pora, notun document Drive e upload |
+| 💬 WhatsApp | Message pathano (Business API diye, othoba WhatsApp khule ready message) |
+| 📣 Facebook Page | MZ Academy er Page e post (text, link, chhobi) |
 
 **Protiti kajer age apnake dekhabe thik ki korbe, tarpor apni bolben:**
 
@@ -55,6 +59,45 @@ Permission?  [y] Haan, koro / approve   [n] Na / reject   [e] Change korte bolo 
 4. `python setup_assistant.py` abar chalan (notun action gulo assistant e jog korte), tarpor `python chat.py`.
 
 Bole dekhun: *"Amar unread email gulo dekho, important gulo summary dao, ar CEO ke weekly report er reply draft koro."*
+
+### Google setup (Calendar + Drive) — ekbar
+
+1. <https://console.cloud.google.com> e jan → notun Project banan (name: "MZ Assistant").
+2. **APIs & Services → Library** theke **Google Calendar API** ar **Google Drive API** enable korun.
+3. **Google Auth Platform → Branding** (OAuth consent screen) setup korun: app name din, User type
+   **Internal** (Google Workspace hole) ba **External**. External hole **Audience → Test users** e
+   nijer email add korun.
+4. **Clients → Create client → Desktop app**. JSON download kore ei folder e
+   `google_credentials.json` name e rakhun.
+5. Chalan: `python connect_google.py` → browser khulbe → login kore **Allow** korun.
+
+Bole dekhun: *"Ei shoptaher amar meeting gulo dekhao"*, *"Drive e 2026 budget file ta khuje summary dao"*.
+
+### WhatsApp setup
+
+- **Kono setup chara-i kaj kore:** assistant WhatsApp (web/desktop) khule message ready kore
+  rakhbe — apni shudhu **Send** chapben.
+- **Puro automatic chaile (WhatsApp Business Cloud API):** <https://developers.facebook.com> e
+  app banan → WhatsApp product add korun → **Phone number ID** ar ekta **permanent access token**
+  (System User token) nin, tarpor set korun:
+  `WHATSAPP_PHONE_NUMBER_ID="..."` ar `WHATSAPP_TOKEN="..."`.
+  Note: Meta er niyom onujayi, je 24 ghontar moddhe apnake message dey nai, take shudhu
+  approved *template* message pathano jay.
+
+### Facebook Page setup
+
+1. <https://developers.facebook.com> e app banan (type: Business), **Pages** permission add korun
+   (`pages_manage_posts`, `pages_read_engagement`).
+2. **Graph API Explorer** e nijer Page select kore **Page access token** nin (long-lived/System
+   User token nile bhalo — expire hoy na).
+3. Set korun: `FACEBOOK_PAGE_ID="..."` ar `FACEBOOK_PAGE_TOKEN="..."`.
+
+Bole dekhun: *"Amader notun AI course er jonno ekta Facebook post likho"* — assistant post ta
+dekhabe, apni `y` dile tobei publish hobe.
+
+> Sob setup er por `python setup_assistant.py` ekbar chalan, jate assistant notun kaj gulo jane.
+> Je setup ta korben na, sei kaj ta assistant apnake bolbe "eta setup kora nai" ar draft kore
+> dibe — onno sob kaj thik moto cholbe.
 
 Kichu kaj protibar permission chara chalate chaile (jemon `list_tasks`), `agent_config.py` e
 `AUTO_APPROVE = {"list_tasks"}` likhun. Default: **sob kaj e permission lagbe.**
@@ -136,5 +179,7 @@ same assistant (a new version) rather than making a new one.
 | `setup_assistant.py` | Creates/updates the assistant (safe to re-run) |
 | `chat.py` | Terminal chat + permission prompts |
 | `actions.py` | The real actions (email, inbox, invites, tasks) — run on your computer |
+| `integrations.py` | Google Calendar, Google Drive, WhatsApp, Facebook Page actions |
+| `connect_google.py` | One-time Google login (saves `google_token.json`, not committed) |
 | `action_log.jsonl` / `tasks.json` | Your approval history and task list (local, not committed) |
 | `assistant_ids.json` | Created by setup; links the scripts to your assistant (not committed) |

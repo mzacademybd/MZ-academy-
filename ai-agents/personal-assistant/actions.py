@@ -219,6 +219,11 @@ ACTIONS = {
 }
 
 
+import integrations  # noqa: E402  (Calendar, Drive, WhatsApp, Facebook)
+
+ACTIONS.update(integrations.ACTIONS)
+
+
 def run(name: str, tool_input: dict) -> str:
     if name not in ACTIONS:
         raise ActionError(f"Unknown action '{name}'.")
@@ -226,3 +231,5 @@ def run(name: str, tool_input: dict) -> str:
         return ACTIONS[name](**tool_input)
     except TypeError as e:
         raise ActionError(f"Wrong inputs for {name}: {e}")
+    except integrations.IntegrationError as e:
+        raise ActionError(str(e))

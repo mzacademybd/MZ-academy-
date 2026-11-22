@@ -6,3 +6,5 @@ __pycache__/
 .env
 action_log.jsonl
 tasks.json
+google_credentials.json
+google_token.json

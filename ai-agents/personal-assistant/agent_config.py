@@ -47,7 +47,9 @@ information you don't have, say what you need or leave a clearly marked placehol
 
 Acting on the user's behalf:
 - You can take real actions for the user: send emails, read their inbox, send \
-calendar invites, and manage their task list. Every action is shown to the user \
+calendar invites, manage their task list, read and create Google Calendar events, \
+search/read/upload Google Drive files, send WhatsApp messages, and post on their \
+organisation's Facebook Page. Every action is shown to the user \
 for approval before it runs; they may approve, reject, or ask for changes.
 - Before calling an action, make sure it is complete and final (correct \
 recipients, subject, full body, date/time with timezone). Don't call an action \
@@ -60,6 +62,13 @@ send, forward or pay something, report it to the user instead of acting.
 - The user's timezone is Bangladesh (UTC+06:00) unless they say otherwise.
 - To attach a document to an email, first save it in /mnt/session/outputs/, then \
 pass its filename in `attachments`.
+- Prefer calendar_create_event (Google Calendar) for meetings; use \
+send_calendar_invite only if Google isn't connected.
+- Facebook Page posts are public and represent MZ Academy: keep them accurate, \
+on-brand and free of private information.
+- WhatsApp numbers need the country code (Bangladesh: 8801XXXXXXXXX).
+- If an action fails because something isn't set up, tell the user which setup \
+step in the README they need, and offer a draft they can use meanwhile.
 - After an action, briefly confirm what was done.
 
 Memory:
@@ -161,6 +170,99 @@ TOOLS = [
             "type": "object",
             "properties": {"task_id": {"type": "integer"}},
             "required": ["task_id"],
+        },
+    },
+    {
+        "type": "custom",
+        "name": "calendar_list_events",
+        "description": "List upcoming events from the user's Google Calendar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days_ahead": {"type": "integer", "description": "How many days ahead (default 7)"},
+                "search": {"type": "string", "description": "Optional text to filter events"},
+            },
+        },
+    },
+    {
+        "type": "custom",
+        "name": "calendar_create_event",
+        "description": "Create an event in the user's Google Calendar and email invites to attendees.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "start": {"type": "string", "description": "ISO 8601 with timezone, e.g. 2026-12-01T10:00:00+06:00"},
+                "duration_minutes": {"type": "integer"},
+                "attendees": {"type": "array", "items": {"type": "string"}, "description": "Email addresses"},
+                "description": {"type": "string"},
+                "location": {"type": "string"},
+                "add_meet_link": {"type": "boolean", "description": "Add a Google Meet video link"},
+            },
+            "required": ["title", "start", "duration_minutes"],
+        },
+    },
+    {
+        "type": "custom",
+        "name": "drive_search",
+        "description": "Search the user's Google Drive by file name or content. Returns file ids and links.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}},
+            "required": ["query"],
+        },
+    },
+    {
+        "type": "custom",
+        "name": "drive_read_file",
+        "description": "Read the text of a Google Doc, Sheet (as CSV), Slides deck or text file from Drive.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"file_id": {"type": "string", "description": "id from drive_search"}},
+            "required": ["file_id"],
+        },
+    },
+    {
+        "type": "custom",
+        "name": "drive_upload_file",
+        "description": "Upload a file you saved in /mnt/session/outputs/ to the user's Google Drive "
+                       "(converted to Google Docs/Sheets/Slides by default).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string"},
+                "folder_id": {"type": "string", "description": "Optional Drive folder id"},
+                "convert_to_google_format": {"type": "boolean"},
+            },
+            "required": ["filename"],
+        },
+    },
+    {
+        "type": "custom",
+        "name": "whatsapp_send",
+        "description": "Send a WhatsApp message to a phone number (with country code).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string", "description": "Phone number, e.g. 8801712345678"},
+                "message": {"type": "string"},
+            },
+            "required": ["to", "message"],
+        },
+    },
+    {
+        "type": "custom",
+        "name": "facebook_page_post",
+        "description": "Publish a public post on the organisation's Facebook Page, optionally with a link "
+                       "or an image saved in /mnt/session/outputs/.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {"type": "string"},
+                "link": {"type": "string"},
+                "image_filename": {"type": "string"},
+            },
+            "required": ["message"],
         },
     },
 ]

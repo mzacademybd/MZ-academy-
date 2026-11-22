@@ -22,6 +22,7 @@ import anthropic
 
 import actions
 import agent_config as cfg
+import integrations
 
 HERE = Path(__file__).parent
 IDS_FILE = HERE / "assistant_ids.json"
@@ -84,6 +85,25 @@ def describe_action(name: str, inp: dict) -> str:
                  f"Attendees: {', '.join(actions._as_list(inp.get('attendees')))}",
                  f"Location:  {inp.get('location') or '—'}",
                  line, inp.get("description", "")]
+    elif name == "calendar_create_event":
+        parts = ["📅  CREATE GOOGLE CALENDAR EVENT",
+                 f"Title:     {inp.get('title')}",
+                 f"Start:     {inp.get('start')}  ({inp.get('duration_minutes')} min)",
+                 f"Attendees: {', '.join(inp.get('attendees') or []) or '— (only you)'}",
+                 f"Location:  {inp.get('location') or '—'}"
+                 + ("   + Google Meet link" if inp.get("add_meet_link") else ""),
+                 line, inp.get("description", "")]
+    elif name == "whatsapp_send":
+        parts = [f"💬  WHATSAPP MESSAGE to {inp.get('to')}", line, inp.get("message", "")]
+    elif name == "facebook_page_post":
+        parts = ["📣  PUBLIC POST ON YOUR FACEBOOK PAGE (everyone can see this)"]
+        if inp.get("image_filename"):
+            parts.append(f"Image: {inp['image_filename']}")
+        if inp.get("link"):
+            parts.append(f"Link:  {inp['link']}")
+        parts += [line, inp.get("message", "")]
+    elif name == "drive_upload_file":
+        parts = [f"☁  UPLOAD TO GOOGLE DRIVE: {inp.get('filename')}"]
     elif name == "read_inbox":
         parts = [f"📥  READ INBOX   search: {inp.get('search')}   (up to {inp.get('limit') or 10} emails)"]
     else:
@@ -116,7 +136,10 @@ def handle_action(client: anthropic.Anthropic, session_id: str, event) -> None:
     if choice == "y":
         decision = "approved"
         try:
-            if name == "send_email" and inp.get("attachments"):
+            if (name == "send_email" and inp.get("attachments")) or (
+                name in integrations.NEEDS_OUTPUT_FILES
+                and (inp.get("filename") or inp.get("image_filename"))
+            ):
                 download_files(client, session_id, quiet=True)
             result = actions.run(name, inp)
             print(f"✓ {result.splitlines()[0][:200]}")
