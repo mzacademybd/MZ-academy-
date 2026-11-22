@@ -1,0 +1,6 @@
+# Local IDs of your hosted agent (not secret, but specific to your account)
+assistant_ids.json
+# Files the assistant created for you
+outputs/
+__pycache__/
+.env
