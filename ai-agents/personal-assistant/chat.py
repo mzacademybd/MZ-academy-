@@ -118,10 +118,40 @@ def log_action(name: str, inp: dict, decision: str, result: str) -> None:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def resolve_action(client: anthropic.Anthropic, session_id: str, name: str, inp: dict,
+                   choice: str, feedback: str = "") -> tuple[str, bool]:
+    """Carry out the user's decision on an action. Returns (result text, is_error).
+
+    choice: "y" approve and run, "e" request changes (with feedback), anything else rejects.
+    Shared by the terminal chat and the Telegram bot.
+    """
+    is_error = False
+    if choice == "y":
+        decision = "approved"
+        try:
+            if (name == "send_email" and inp.get("attachments")) or (
+                name in integrations.NEEDS_OUTPUT_FILES
+                and (inp.get("filename") or inp.get("image_filename"))
+            ):
+                download_files(client, session_id, quiet=True)
+            result = actions.run(name, inp)
+        except actions.ActionError as e:
+            result, is_error = str(e), True
+    elif choice == "e":
+        decision = "changes_requested"
+        result = ("The user did NOT approve this action yet. They asked for these changes: "
+                  f"{feedback or '(no details)'}. Revise and ask again.")
+    else:
+        decision = "rejected"
+        result = "The user REJECTED this action. Do not retry it unchanged; ask what they want instead."
+    log_action(name, inp, decision, result)
+    return result, is_error
+
+
 def handle_action(client: anthropic.Anthropic, session_id: str, event) -> None:
     """The assistant wants to act on your behalf: ask you, then run it (or not)."""
     name, inp = event.name, dict(event.input or {})
-    is_error = False
+    feedback = ""
 
     if name in cfg.AUTO_APPROVE:
         choice = "y"
@@ -132,34 +162,18 @@ def handle_action(client: anthropic.Anthropic, session_id: str, event) -> None:
             choice = input("> ").strip().lower()[:1]
         except EOFError:
             choice = "n"
+        if choice == "e":
+            try:
+                feedback = input("Ki change korte hobe? / What should change? ").strip()
+            except EOFError:
+                feedback = ""
 
+    result, is_error = resolve_action(client, session_id, name, inp, choice, feedback)
     if choice == "y":
-        decision = "approved"
-        try:
-            if (name == "send_email" and inp.get("attachments")) or (
-                name in integrations.NEEDS_OUTPUT_FILES
-                and (inp.get("filename") or inp.get("image_filename"))
-            ):
-                download_files(client, session_id, quiet=True)
-            result = actions.run(name, inp)
-            print(f"✓ {result.splitlines()[0][:200]}")
-        except actions.ActionError as e:
-            result, is_error = str(e), True
-            print(f"✗ {result}")
-    elif choice == "e":
-        decision = "changes_requested"
-        try:
-            feedback = input("Ki change korte hobe? / What should change? ").strip()
-        except EOFError:
-            feedback = ""
-        result = ("The user did NOT approve this action yet. They asked for these changes: "
-                  f"{feedback or '(no details)'}. Revise and ask again.")
-    else:
-        decision = "rejected"
-        result = "The user REJECTED this action. Do not retry it unchanged; ask what they want instead."
+        print(f"{'✗' if is_error else '✓'} {result.splitlines()[0][:200]}")
+    elif choice != "e":
         print("✗ Rejected — kichu kora hoyni.")
 
-    log_action(name, inp, decision, result)
     client.beta.sessions.events.send(
         session_id=session_id,
         events=[{

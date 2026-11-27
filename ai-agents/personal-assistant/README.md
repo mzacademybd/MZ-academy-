@@ -102,6 +102,38 @@ dekhabe, apni `y` dile tobei publish hobe.
 Kichu kaj protibar permission chara chalate chaile (jemon `list_tasks`), `agent_config.py` e
 `AUTO_APPROVE = {"list_tasks"}` likhun. Default: **sob kaj e permission lagbe.**
 
+## Telegram bot (phone theke assistant chalan)
+
+`telegram_bot.py` apnar assistant ke Telegram bot e niye ashe. Kono kaj korar age bot
+**✅ Approve / ❌ Reject / ✏️ Change** button pathay. Shudhu apni (owner) use korte parben.
+Onno keu message dile bot use korte dey na.
+
+**Mac e ekbar setup (Terminal e):**
+
+```bash
+git clone -b claude/ai-agents-wxqpi2 https://github.com/mzacademybd/MZ-academy-.git
+cd MZ-academy-/ai-agents/personal-assistant
+python3 -m pip install -r requirements.txt
+cp .env.example .env
+open -e .env          # ANTHROPIC_API_KEY ar TELEGRAM_BOT_TOKEN boshiye Save korun
+python3 setup_assistant.py
+python3 telegram_bot.py
+```
+
+1. Telegram e bot ke `/start` pathan. Bot apnar **Telegram ID** bolbe.
+2. Seta `.env` e `TELEGRAM_OWNER_ID=...` te boshan. Terminal e `Ctrl + C` chepe bot thamiye din.
+3. Auto-start chalu korun:
+
+```bash
+./install_mac_service.sh
+```
+
+Ekhon theke Mac restart holeo ba bot crash korleo bot **nije abar chalu hobe**. Bot cholar shomoy
+Mac idle sleep e jabe na. Tobe laptop er lid bondho korle ba power off korle bot bondho thakbe.
+Log dekhte: `logs/bot.log`. Auto-start bondho korte: `./install_mac_service.sh --remove`.
+
+Bot er command: `/new` notun conversation · `/files` banano file · `/tasks` task list · `/help`
+
 ## How it works
 
 - **Agent**: Claude with your instructions (`agent_config.py`).
@@ -180,6 +212,8 @@ same assistant (a new version) rather than making a new one.
 | `chat.py` | Terminal chat + permission prompts |
 | `actions.py` | The real actions (email, inbox, invites, tasks) — run on your computer |
 | `integrations.py` | Google Calendar, Google Drive, WhatsApp, Facebook Page actions |
+| `telegram_bot.py` / `install_mac_service.sh` | Telegram bot with approval buttons; Mac auto-start |
+| `.env.example` | Template for your private settings (copy to `.env`, never commit) |
 | `connect_google.py` | One-time Google login (saves `google_token.json`, not committed) |
 | `action_log.jsonl` / `tasks.json` | Your approval history and task list (local, not committed) |
 | `assistant_ids.json` | Created by setup; links the scripts to your assistant (not committed) |
